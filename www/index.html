@@ -243,14 +243,77 @@ const LS_CHAT_HISTORY = 'meshchat_history';
 const LS_GROUPS = 'meshchat_groups';
 
 // ============================================================================
-// OFFLINE MODE (mock mesh)
+// OFFLINE MODE — real Bluetooth/Wi-Fi Direct via the NearbyMesh native
+// plugin when running as an installed app. Falls back to mock peers when
+// opened in a plain browser (e.g. this Blogger preview), since Bluetooth
+// hardware access only exists inside the real Android app.
 // ============================================================================
+const isNativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
 const MOCK_PEERS = [
   { id: 'p1', name: 'Rizwan', initials: 'RZ', distance: '4m away', via: 'Bluetooth', signal: 3, color: '#B98CE8', kind: 'offline' },
   { id: 'p2', name: 'Sana K.', initials: 'SK', distance: '9m away', via: 'Wi-Fi Direct', signal: 3, color: '#FF9EC4', kind: 'offline' },
   { id: 'p3', name: 'Hamza', initials: 'HM', distance: '15m away', via: 'Bluetooth', signal: 2, color: '#FFC178', kind: 'offline' },
   { id: 'p4', name: 'Tahira', initials: 'TF', distance: '2 hops', via: 'Mesh relay', signal: 1, color: '#6FC6CC', kind: 'offline' },
 ];
+
+// endpointId -> { id, name, initials, color, kind:'offline-real' }
+let realOfflinePeers = {};
+let realMeshStarted = false;
+
+function realPeerCardData(endpointId, name) {
+  const ini = (name || '?').trim().split(/\s+/).slice(0,2).map(p=>p[0]?.toUpperCase()).join('');
+  return { id: endpointId, name: name || 'Nearby device', initials: ini, via: 'Bluetooth / Wi-Fi Direct', signal: 3, color: '#B98CE8', kind: 'offline-real' };
+}
+
+function startRealOfflineMesh() {
+  if (realMeshStarted || !isNativeApp) return;
+  realMeshStarted = true;
+  const { NearbyMesh } = window.Capacitor.Plugins;
+
+  NearbyMesh.addListener('peerFound', (data) => {
+    realOfflinePeers[data.endpointId] = realPeerCardData(data.endpointId, data.name);
+    renderOfflinePeerList();
+  });
+  NearbyMesh.addListener('peerLost', (data) => {
+    delete realOfflinePeers[data.endpointId];
+    renderOfflinePeerList();
+  });
+  NearbyMesh.addListener('messageReceived', (data) => {
+    const partner = realOfflinePeers[data.endpointId];
+    const list = chatHistory[data.endpointId] || [];
+    list.push({ id: Date.now(), from: 'them', msgType: 'text', text: data.text, time: nowTime() });
+    chatHistory[data.endpointId] = list;
+    saveJSON(LS_CHAT_HISTORY, chatHistory);
+    if (currentPeer && currentPeer.id === data.endpointId) { messages = list; renderMessages(); }
+  });
+
+  NearbyMesh.startMesh({ username: userProfile.name }).catch((err) => {
+    document.getElementById('peer-count').textContent = 'Bluetooth unavailable — please turn it on in system settings';
+    console.log('[mesh] startMesh failed', err);
+  });
+}
+
+function renderOfflinePeerList() {
+  const listEl = document.getElementById('peer-list');
+  const countEl = document.getElementById('peer-count');
+  const peers = Object.values(realOfflinePeers);
+  countEl.textContent = peers.length ? (peers.length + ' device(s) in mesh range') : 'Scanning for nearby devices…';
+  if (!peers.length) {
+    listEl.innerHTML = '<div class="people-empty">No one nearby yet. Ask a friend to open the app too — within Bluetooth range (a few meters), you\'ll find each other automatically.</div>';
+    return;
+  }
+  listEl.innerHTML = '';
+  peers.forEach(peer => {
+    const card = document.createElement('div');
+    card.className = 'glass-card peer-card';
+    card.innerHTML = `
+      <div class="avatar" style="background:${peer.color}">${peer.initials}<span class="live-dot"></span></div>
+      <div><div class="peer-name">${peer.name}</div><div class="peer-meta">${peer.via}</div></div>`;
+    card.addEventListener('click', () => goToChat(peer));
+    listEl.appendChild(card);
+  });
+}
 
 // ============================================================================
 // ONLINE MODE — permission-based rotating relay, end-to-end encrypted,
@@ -624,6 +687,15 @@ function goToNearby() {
       <div style="flex:1"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
     </div>`).join('');
 
+  if (isNativeApp) {
+    // Real device: start the actual Bluetooth/Wi-Fi Direct mesh. The peer
+    // list fills in live via renderOfflinePeerList() as devices are found —
+    // no fixed timeout, since real discovery has no guaranteed duration.
+    startRealOfflineMesh();
+    if (Object.keys(realOfflinePeers).length) renderOfflinePeerList();
+    return;
+  }
+
   setTimeout(() => {
     countEl.textContent = MOCK_PEERS.length + ' devices in mesh range';
     listEl.innerHTML = '';
@@ -742,6 +814,16 @@ function handleSend() {
   if (currentPeer.kind === 'online' || currentPeer.kind === 'group') {
     const msgId = sendOnlineMessage('text', text);
     messages.push({ id: msgId, from: 'me', msgType: 'text', text, time: nowTime(), senderAlias: userProfile.name, seenBy: [] });
+    chatHistory[currentPeer.id] = messages;
+    saveJSON(LS_CHAT_HISTORY, chatHistory);
+    input.value = ''; updateSendState(); renderMessages();
+    return;
+  }
+
+  if (currentPeer.kind === 'offline-real') {
+    const { NearbyMesh } = window.Capacitor.Plugins;
+    NearbyMesh.sendMessage({ endpointId: currentPeer.id, text }).catch(e => console.log('[mesh] send failed', e));
+    messages.push({ id: Date.now(), from: 'me', msgType: 'text', text, time: nowTime() });
     chatHistory[currentPeer.id] = messages;
     saveJSON(LS_CHAT_HISTORY, chatHistory);
     input.value = ''; updateSendState(); renderMessages();
