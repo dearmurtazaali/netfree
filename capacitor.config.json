@@ -1,0 +1,8 @@
+{
+  "appId": "com.example.meshchat",
+  "appName": "Mesh Chat",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}

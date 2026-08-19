@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Mesh Chat — Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<style>
+:root {
+  --bg-top: #FFE4F0; --bg-bottom: #E7D9FA; --pink-primary: #FF7FAE; --pink-soft: #FFB8D2;
+  --purple-accent: #B98CE8; --mint-online: #6EE7B7; --glass-fill: rgba(255,255,255,0.55);
+  --glass-border: rgba(255,255,255,0.8); --text-plum: #5B3963; --text-muted: #9A7CA3; --white: #FFFFFF;
+  --radius-lg: 24px; --radius-md: 20px; --space-sm: 8px; --space-md: 16px; --space-lg: 24px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Quicksand', sans-serif; background: linear-gradient(160deg, var(--bg-top), var(--bg-bottom)); color: var(--text-plum); min-height: 100vh; max-width: 420px; margin: 0 auto; overflow-x: hidden; }
+.screen { display: none; padding-bottom: 90px; min-height: 100vh; }
+.screen.active { display: block; animation: screenFade 0.25s ease; }
+@keyframes screenFade { from { opacity: 0; } to { opacity: 1; } }
+.header { padding: 32px var(--space-lg) var(--space-md); display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.greeting { font-family: 'Baloo 2', sans-serif; font-size: 22px; font-weight: 700; }
+.subtext { font-size: 13px; color: var(--text-muted); font-weight: 600; margin-top: 2px; }
+.glass-card { background: var(--glass-fill); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--glass-border); border-radius: var(--radius-lg); }
+.section-label { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--purple-accent); padding: var(--space-lg) var(--space-lg) 10px; display:flex; justify-content:space-between; align-items:center; }
+.section-label .add-link { color: var(--pink-primary); cursor:pointer; text-transform:none; letter-spacing:0; font-size:12.5px; }
+
+.onboard-center { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 80px var(--space-lg) 0; gap: 6px; }
+.onboard-icon { font-size: 44px; margin-bottom: 8px; }
+.onboard-input { width: 100%; margin-top: 24px; background: var(--glass-fill); border: 1px solid var(--glass-border); border-radius: var(--radius-md); padding: 13px 18px; font-size: 14px; font-family: 'Quicksand', sans-serif; color: var(--text-plum); text-align: center; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.onboard-input:focus { outline: none; border-color: var(--pink-primary); box-shadow: 0 0 0 3px rgba(255,127,174,0.18); }
+.primary-btn { margin-top: 22px; width: 100%; background: var(--pink-primary); color: var(--white); border: none; border-radius: var(--radius-md); padding: 14px; font-size: 14px; font-weight: 700; font-family: 'Quicksand', sans-serif; cursor: pointer; box-shadow: 0 10px 22px -10px rgba(255,127,174,0.6); transition: transform 0.12s ease, opacity 0.15s ease; }
+.primary-btn:active { transform: scale(0.97); }
+.primary-btn:disabled { opacity: 0.4; box-shadow: none; cursor: not-allowed; }
+.primary-btn.secondary { background: var(--glass-fill); color: var(--pink-primary); border: 1px solid var(--glass-border); box-shadow: none; margin-top: 18px; }
+
+.mode-toggle { display: flex; gap: 8px; padding: 0 var(--space-lg) var(--space-md); }
+.mode-btn { flex: 1; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--glass-border); background: var(--glass-fill); color: var(--text-muted); font-weight: 700; font-size: 13px; font-family: 'Quicksand', sans-serif; cursor: pointer; transition: all 0.15s ease; }
+.mode-btn.active { background: var(--pink-primary); color: var(--white); border-color: var(--pink-primary); }
+
+.peer-list { padding: 0 var(--space-md); display: flex; flex-direction: column; gap: 10px; }
+.peer-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; transition: transform 0.12s ease, background 0.12s ease; animation: cardIn 0.35s ease backwards; }
+.peer-card:active { transform: scale(0.97); background: rgba(255,255,255,0.75); }
+@keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.skeleton-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.skeleton-dot, .skeleton-line { background: linear-gradient(90deg, rgba(255,255,255,0.3) 25%, rgba(255,255,255,0.6) 37%, rgba(255,255,255,0.3) 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; border-radius: 8px; }
+.skeleton-dot { width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0; }
+.skeleton-line { height: 11px; width: 60%; margin-bottom: 6px; }
+.skeleton-line.short { width: 35%; margin-bottom: 0; }
+@keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+.avatar { width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: 'Baloo 2', sans-serif; font-weight: 700; color: var(--white); font-size: 15px; position: relative; }
+.avatar .live-dot { position:absolute; bottom:-1px; right:-1px; width:11px; height:11px; border-radius:50%; background: var(--mint-online); border:2px solid var(--white); }
+.peer-name { font-weight: 700; font-size: 14.5px; }
+.peer-meta { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-top: 1px; }
+.signal { margin-left: auto; color: var(--pink-primary); font-weight: 700; letter-spacing: 1px; }
+
+.online-status-bar { margin: 0 var(--space-lg) var(--space-md); padding: 10px 14px; display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color: var(--text-muted); }
+.online-status-bar .dot { width:8px; height:8px; border-radius:50%; background:#E8DCF0; flex-shrink:0; }
+.online-status-bar .dot.live { background: var(--mint-online); box-shadow:0 0 6px var(--mint-online); }
+.online-status-bar .dot.busy { background: var(--purple-accent); animation: pulseDot 1.1s ease infinite; }
+@keyframes pulseDot { 0%,100%{opacity:1;} 50%{opacity:.35;} }
+.people-empty { text-align: center; color: var(--text-muted); padding: 30px 24px; font-size: 12.5px; line-height: 1.6; }
+
+.consent-banner { margin: 0 var(--space-lg) var(--space-md); padding: 14px; }
+.consent-banner p { font-size: 12.5px; color: var(--text-plum); font-weight: 600; line-height: 1.5; margin-bottom: 10px; }
+.consent-row { display: flex; gap: 8px; }
+.consent-row button { flex: 1; padding: 9px; border-radius: var(--radius-md); border: none; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+.consent-yes { background: var(--pink-primary); color: var(--white); }
+.consent-no { background: var(--glass-fill); border: 1px solid var(--glass-border) !important; color: var(--text-muted); }
+
+.lock-note { display:flex; align-items:center; gap:6px; font-size: 10.5px; color: var(--text-muted); font-weight: 700; padding: 6px 4px 0; }
+
+.chat-header { display: flex; align-items: center; gap: 12px; padding: 32px var(--space-lg) var(--space-md); }
+.chat-name { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 16px; }
+.chat-status { font-size: 11.5px; color: var(--mint-online); font-weight: 700; }
+.back-btn { font-size: 20px; color: var(--text-plum); background: none; border: none; cursor: pointer; padding: 4px 8px 4px 0; transition: transform 0.12s ease; }
+.back-btn:active { transform: scale(0.85) translateX(-2px); }
+.messages { padding: 0 var(--space-lg); display: flex; flex-direction: column; gap: 4px; height: 320px; overflow-y: auto; scroll-behavior: smooth; }
+.msg-row { display: flex; flex-direction: column; margin-bottom: 8px; animation: bubbleIn 0.28s cubic-bezier(.2,.8,.3,1) backwards; max-width: 78%; }
+.msg-row.them { align-items: flex-start; align-self: flex-start; } .msg-row.me { align-items: flex-end; align-self: flex-end; }
+@keyframes bubbleIn { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.sender-label { font-size: 10.5px; font-weight: 700; color: var(--purple-accent); margin: 0 4px 2px; }
+.bubble { padding: 12px 15px; border-radius: 20px; font-size: 13.5px; font-weight: 600; line-height: 1.4; }
+.bubble.them { background: var(--glass-fill); border: 1px solid var(--glass-border); border-bottom-left-radius: 6px; }
+.bubble.me { background: var(--pink-primary); color: var(--white); border-bottom-right-radius: 6px; box-shadow: 0 6px 14px -6px rgba(255,127,174,0.5); }
+.bubble img { max-width: 190px; border-radius: 14px; display:block; }
+.msg-time { font-size: 10px; color: var(--text-muted); font-weight: 700; margin-top: 3px; padding: 0 4px; display:flex; gap:4px; align-items:center; }
+.msg-time .seen-tick { color: var(--mint-online); font-weight: 800; }
+.date-sep { text-align: center; font-size: 11px; color: var(--text-muted); font-weight: 700; margin: 14px 0 6px; }
+.typing-row { align-self: flex-start; }
+.typing-bubble { display: inline-flex; gap: 4px; padding: 13px 16px; background: var(--glass-fill); border: 1px solid var(--glass-border); border-radius: 20px; border-bottom-left-radius: 6px; }
+.typing-bubble span { width: 6px; height: 6px; border-radius: 50%; background: var(--purple-accent); animation: typingBounce 1.1s ease infinite; display:inline-block; }
+.typing-bubble span:nth-child(2) { animation-delay: 0.15s; } .typing-bubble span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes typingBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-4px); opacity: 1; } }
+.composer { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; padding: 14px var(--space-md) 18px; background: rgba(255,255,255,0.65); backdrop-filter: blur(16px); border-top: 1px solid var(--glass-border); }
+.composer input[type=text] { flex: 1; background: var(--glass-fill); border: 1px solid var(--glass-border); border-radius: var(--radius-md); padding: 11px 16px; font-size: 13px; font-family: 'Quicksand', sans-serif; color: var(--text-plum); transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.composer input[type=text]:focus { outline: none; border-color: var(--pink-primary); box-shadow: 0 0 0 3px rgba(255,127,174,0.18); }
+.icon-btn { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; border: none; background: var(--glass-fill); border: 1px solid var(--glass-border); color: var(--text-plum); font-size: 16px; cursor: pointer; }
+.send-btn { width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0; border: none; background: var(--pink-primary); color: var(--white); font-size: 16px; cursor: pointer; transition: transform 0.12s ease, opacity 0.15s ease, background 0.15s ease; }
+.send-btn:active { transform: scale(0.88); }
+.send-btn:disabled { background: #E8DCF0; color: var(--text-muted); cursor: not-allowed; }
+
+.navbar { display: flex; justify-content: space-around; padding: 12px 20px 20px; background: rgba(255,255,255,0.6); backdrop-filter: blur(16px); border-top: 1px solid var(--glass-border); }
+.nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: none; cursor: pointer; }
+.nav-dot { width: 20px; height: 20px; border-radius: 50%; background: #E8DCF0; }
+.nav-item.active .nav-dot { background: var(--pink-primary); }
+.nav-label { font-size: 10.5px; font-weight: 700; color: var(--text-muted); }
+.nav-item.active .nav-label { color: var(--pink-primary); }
+.storage-note { text-align:center; font-size: 10.5px; color: var(--text-muted); padding: 8px 24px 0; }
+
+.group-check-row { display:flex; align-items:center; gap:10px; padding:11px 14px; }
+.group-check-row input { width:18px; height:18px; accent-color: var(--pink-primary); }
+</style>
+</head>
+<body>
+
+  <div class="screen active" id="bluetooth-screen">
+    <div class="onboard-center">
+      <div class="onboard-icon">📶</div>
+      <div class="greeting">Bluetooth is off</div>
+      <div class="subtext">Mesh Chat needs Bluetooth to find nearby people. Turn it on to continue.</div>
+      <button class="primary-btn" id="enable-bt-btn">Turn on Bluetooth</button>
+    </div>
+  </div>
+
+  <div class="screen" id="name-screen">
+    <div class="onboard-center">
+      <div class="onboard-icon">👋</div>
+      <div class="greeting">What's your name?</div>
+      <div class="subtext">This is how nearby people will see you.</div>
+      <input type="text" id="name-input" class="onboard-input" placeholder="Your name">
+      <button class="primary-btn" id="name-continue-btn" disabled>Continue</button>
+      <div class="storage-note">Saved only on this device — asked once.</div>
+    </div>
+  </div>
+
+  <div class="screen" id="nearby-screen">
+    <div class="header">
+      <div>
+        <div class="greeting" id="home-greeting">Hi 👋</div>
+        <div class="subtext" id="peer-count">Scanning…</div>
+      </div>
+    </div>
+
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="mode-offline-btn">📶 Offline</button>
+      <button class="mode-btn" id="mode-online-btn">🌐 Online</button>
+    </div>
+
+    <div id="offline-panel">
+      <div class="section-label">NEARBY PEOPLE</div>
+      <div class="peer-list" id="peer-list"></div>
+    </div>
+
+    <div id="online-panel" style="display:none;">
+      <div class="glass-card online-status-bar">
+        <span class="dot" id="online-status-dot"></span>
+        <span id="online-status-text">Connecting to the mesh…</span>
+      </div>
+
+      <div class="glass-card consent-banner" id="consent-banner" style="display:none;">
+        <p>No one is currently relaying connections. Would you like your device to help connect others right now? It only passes along locked, unreadable messages — never their content.</p>
+        <div class="consent-row">
+          <button class="consent-no" id="consent-no-btn">No thanks</button>
+          <button class="consent-yes" id="consent-yes-btn">Yes, help out</button>
+        </div>
+      </div>
+
+      <div class="section-label">GROUPS <span class="add-link" id="new-group-btn">+ New group</span></div>
+      <div class="peer-list" id="group-list"></div>
+
+      <div class="section-label">ONLINE NOW</div>
+      <div class="peer-list" id="online-list"></div>
+      <div class="lock-note" style="padding-left:24px;">🔒 Messages are end-to-end locked — even the relaying device can't read them</div>
+    </div>
+
+    <div class="navbar">
+      <button class="nav-item active" id="nav-chat"><div class="nav-dot"></div><div class="nav-label">Chat</div></button>
+      <button class="nav-item" id="nav-profile"><div class="nav-dot"></div><div class="nav-label">Profile</div></button>
+    </div>
+  </div>
+
+  <div class="screen" id="new-group-screen">
+    <div class="chat-header">
+      <button class="back-btn" id="group-back-btn">←</button>
+      <div class="greeting">New group</div>
+    </div>
+    <div style="padding: 0 24px 16px;">
+      <input type="text" id="group-name-input" class="onboard-input" style="margin-top:0;" placeholder="Group name">
+    </div>
+    <div class="section-label">SELECT MEMBERS</div>
+    <div class="peer-list glass-card" id="group-member-list" style="padding:6px 0;"></div>
+    <div style="padding: 0 24px;">
+      <button class="primary-btn" id="group-create-btn" disabled>Create group</button>
+    </div>
+  </div>
+
+  <div class="screen" id="profile-screen">
+    <div class="header"><div class="greeting">Profile</div></div>
+    <div class="onboard-center" style="padding-top: 10px;">
+      <div class="avatar" id="profile-avatar" style="width:72px;height:72px;font-size:24px;background:var(--pink-primary);"></div>
+      <div class="greeting" id="profile-name" style="margin-top:14px;"></div>
+      <button class="primary-btn secondary" id="profile-edit-btn">Edit name</button>
+    </div>
+    <div class="navbar">
+      <button class="nav-item" id="nav-chat-2"><div class="nav-dot"></div><div class="nav-label">Chat</div></button>
+      <button class="nav-item active" id="nav-profile-2"><div class="nav-dot"></div><div class="nav-label">Profile</div></button>
+    </div>
+  </div>
+
+  <div class="screen" id="chat-screen">
+    <div class="chat-header">
+      <button class="back-btn" id="back-btn">←</button>
+      <div class="avatar" id="chat-avatar"></div>
+      <div>
+        <div class="chat-name" id="chat-name"></div>
+        <div class="chat-status" id="chat-status"></div>
+      </div>
+    </div>
+    <div class="messages" id="messages"></div>
+    <div class="composer">
+      <button class="icon-btn" id="image-btn">📷</button>
+      <input type="file" id="image-input" accept="image/*" style="display:none;">
+      <input type="text" id="composer-input" placeholder="Type a message…">
+      <button class="send-btn" id="send-btn" disabled>➤</button>
+    </div>
+  </div>
+
+<script>
+// ============================================================================
+// PERSISTENCE (real once hosted on Blogger; blocked inside Claude's preview)
+// ============================================================================
+function safeGet(key) { try { return localStorage.getItem(key); } catch(e) { return null; } }
+function safeSet(key, val) { try { localStorage.setItem(key, val); } catch(e) {} }
+function loadJSON(key, fallback) { const raw = safeGet(key); if (!raw) return fallback; try { return JSON.parse(raw); } catch(e) { return fallback; } }
+function saveJSON(key, obj) { safeSet(key, JSON.stringify(obj)); }
+
+const LS_NAME = 'meshchat_name';
+const LS_PRIV_KEY = 'meshchat_priv_jwk';
+const LS_PUB_KEY = 'meshchat_pub_jwk';
+const LS_CHAT_HISTORY = 'meshchat_history';
+const LS_GROUPS = 'meshchat_groups';
+
+// ============================================================================
+// OFFLINE MODE (mock mesh)
+// ============================================================================
+const MOCK_PEERS = [
+  { id: 'p1', name: 'Rizwan', initials: 'RZ', distance: '4m away', via: 'Bluetooth', signal: 3, color: '#B98CE8', kind: 'offline' },
+  { id: 'p2', name: 'Sana K.', initials: 'SK', distance: '9m away', via: 'Wi-Fi Direct', signal: 3, color: '#FF9EC4', kind: 'offline' },
+  { id: 'p3', name: 'Hamza', initials: 'HM', distance: '15m away', via: 'Bluetooth', signal: 2, color: '#FFC178', kind: 'offline' },
+  { id: 'p4', name: 'Tahira', initials: 'TF', distance: '2 hops', via: 'Mesh relay', signal: 1, color: '#6FC6CC', kind: 'offline' },
+];
+
+// ============================================================================
+// ONLINE MODE — permission-based rotating relay, end-to-end encrypted,
+// now with seen receipts, images, and groups. No company server anywhere.
+// ============================================================================
+const LOBBY_ID = 'meshchat-lobby-preview-v1';
+
+const mesh = { peer: null, isHost: false, hostConn: null, connections: {}, reconnectTimer: null, myKeyPair: null, sharedKeys: {} };
+let myPeerId = null;
+let directory = {};
+let groups = loadJSON(LS_GROUPS, {});
+
+// ---- Crypto ----
+async function generateKeyPair() { return crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']); }
+async function loadOrCreateKeyPair() {
+  const savedPriv = loadJSON(LS_PRIV_KEY, null), savedPub = loadJSON(LS_PUB_KEY, null);
+  if (savedPriv && savedPub) {
+    try {
+      const privateKey = await crypto.subtle.importKey('jwk', savedPriv, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+      const publicKey = await crypto.subtle.importKey('jwk', savedPub, { name: 'ECDH', namedCurve: 'P-256' }, true, []);
+      return { privateKey, publicKey };
+    } catch(e) {}
+  }
+  const kp = await generateKeyPair();
+  saveJSON(LS_PRIV_KEY, await crypto.subtle.exportKey('jwk', kp.privateKey));
+  saveJSON(LS_PUB_KEY, await crypto.subtle.exportKey('jwk', kp.publicKey));
+  return kp;
+}
+async function importPubKey(jwk) { return crypto.subtle.importKey('jwk', jwk, { name: 'ECDH', namedCurve: 'P-256' }, true, []); }
+async function getSharedKey(peerId) {
+  if (mesh.sharedKeys[peerId]) return mesh.sharedKeys[peerId];
+  const entry = directory[peerId];
+  if (!entry || !entry.pubKeyJwk) return null;
+  const theirPub = await importPubKey(entry.pubKeyJwk);
+  const key = await crypto.subtle.deriveKey({ name: 'ECDH', public: theirPub }, mesh.myKeyPair.privateKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  mesh.sharedKeys[peerId] = key;
+  return key;
+}
+function bufToB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function b64ToBuf(b64) { return Uint8Array.from(atob(b64), c => c.charCodeAt(0)); }
+async function encryptFor(peerId, text) {
+  const key = await getSharedKey(peerId);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text));
+  return { iv: bufToB64(iv), ct: bufToB64(ct) };
+}
+async function decryptFrom(peerId, ivB64, ctB64) {
+  const key = await getSharedKey(peerId);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToBuf(ivB64) }, key, b64ToBuf(ctB64));
+  return new TextDecoder().decode(pt);
+}
+
+// ---- Status UI ----
+function setOnlineStatus(text, cls) {
+  document.getElementById('online-status-text').textContent = text;
+  document.getElementById('online-status-dot').className = 'dot' + (cls ? ' ' + cls : '');
+}
+function myDirEntry(pubJwk) { return { alias: userProfile.name, pubKeyJwk: pubJwk }; }
+
+function renderOnlineList() {
+  const list = document.getElementById('online-list');
+  const ids = Object.keys(directory).filter(id => id !== myPeerId);
+  if (!ids.length) {
+    list.innerHTML = '<div class="people-empty">No one else is online right now.<br>Share this page with a friend and ask them to open it too.</div>';
+  } else {
+    list.innerHTML = '';
+    ids.forEach(id => {
+      const entry = directory[id];
+      const card = document.createElement('div');
+      card.className = 'glass-card peer-card';
+      const ini = (entry.alias || '?').trim().split(/\s+/).slice(0,2).map(p=>p[0]?.toUpperCase()).join('');
+      card.innerHTML = `<div class="avatar" style="background:#B98CE8">${ini}<span class="live-dot"></span></div>
+        <div><div class="peer-name">${entry.alias || id}</div><div class="peer-meta">Online now</div></div>`;
+      card.addEventListener('click', () => goToChat({ id, name: entry.alias || id, initials: ini, color: '#B98CE8', kind: 'online' }));
+      list.appendChild(card);
+    });
+  }
+  renderGroupList();
+}
+
+function renderGroupList() {
+  const list = document.getElementById('group-list');
+  const ids = Object.keys(groups);
+  if (!ids.length) { list.innerHTML = '<div class="people-empty">No groups yet.</div>'; return; }
+  list.innerHTML = '';
+  ids.forEach(gid => {
+    const g = groups[gid];
+    const card = document.createElement('div');
+    card.className = 'glass-card peer-card';
+    const ini = (g.name || '?').trim().split(/\s+/).slice(0,2).map(p=>p[0]?.toUpperCase()).join('');
+    card.innerHTML = `<div class="avatar" style="background:#6FC6CC">${ini}</div>
+      <div><div class="peer-name">${g.name}</div><div class="peer-meta">${g.members.length} members</div></div>`;
+    card.addEventListener('click', () => goToChat({ id: gid, name: g.name, initials: ini, color: '#6FC6CC', kind: 'group', members: g.members }));
+    list.appendChild(card);
+  });
+}
+
+function rebuildDirectoryAsHost() {
+  crypto.subtle.exportKey('jwk', mesh.myKeyPair.publicKey).then(myPub => {
+    const full = { };
+    full[myPeerId] = myDirEntry(myPub);
+    Object.keys(mesh.connections).forEach(id => {
+      const c = mesh.connections[id];
+      if (c._alias) full[id] = { alias: c._alias, pubKeyJwk: c._pubKeyJwk };
+    });
+    directory = full;
+    Object.keys(mesh.connections).forEach(id => { try { mesh.connections[id].send({ type: 'directory:full', directory }); } catch(e) {} });
+    renderOnlineList();
+    setOnlineStatus((Object.keys(full).length - 1) + ' other(s) online · you are relaying', 'live');
+  });
+}
+
+// ---- Routing ----
+function routeToRecipient(payload) {
+  if (payload.to === myPeerId) { handleIncomingPayload(payload); return; }
+  if (mesh.isHost) { const c = mesh.connections[payload.to]; if (c) { try { c.send(payload); } catch(e) {} } }
+}
+
+async function handleIncomingPayload(payload) {
+  if (payload.type === 'chat') { await handleIncomingChatMsg(payload); }
+  else if (payload.type === 'seen') { handleSeenAck(payload); }
+  else if (payload.type === 'group:invite') { handleGroupInvite(payload); }
+}
+
+async function handleIncomingChatMsg(payload) {
+  const convoId = payload.groupId || payload.from;
+  const text = payload.msgType === 'image' ? null : await decryptFrom(payload.from, payload.iv, payload.ct);
+  const image = payload.msgType === 'image' ? await decryptFrom(payload.from, payload.iv, payload.ct) : null;
+
+  let list = chatHistory[convoId] || [];
+  list.push({
+    id: payload.msgId, senderId: payload.from, from: 'them',
+    msgType: payload.msgType || 'text', text, image,
+    time: nowTime(), senderAlias: payload.fromAlias, seen: false
+  });
+  chatHistory[convoId] = list;
+  saveJSON(LS_CHAT_HISTORY, chatHistory);
+
+  if (currentPeer && currentPeer.id === convoId) {
+    renderMessages();
+    sendSeenAck(payload.from, payload.msgId, convoId);
+  }
+}
+
+function handleSeenAck(payload) {
+  const convoId = payload.convoId;
+  const list = chatHistory[convoId] || [];
+  const msg = list.find(m => m.id === payload.msgId);
+  if (msg) {
+    if (currentPeer && currentPeer.kind === 'group') {
+      msg.seenBy = msg.seenBy || [];
+      if (!msg.seenBy.includes(payload.from)) msg.seenBy.push(payload.from);
+    } else {
+      msg.seen = true;
+    }
+    saveJSON(LS_CHAT_HISTORY, chatHistory);
+    if (currentPeer && currentPeer.id === convoId) renderMessages();
+  }
+}
+
+function sendSeenAck(toId, msgId, convoId) {
+  const payload = { type: 'seen', from: myPeerId, to: toId, msgId, convoId, ts: Date.now() };
+  if (mesh.isHost) routeToRecipient(payload);
+  else if (mesh.hostConn) { try { mesh.hostConn.send(payload); } catch(e) {} }
+}
+
+function handleGroupInvite(payload) {
+  groups[payload.groupId] = { id: payload.groupId, name: payload.groupName, members: payload.members };
+  saveJSON(LS_GROUPS, groups);
+  renderGroupList();
+}
+
+// ---- Transport plumbing (host election, client connect) ----
+function setupHostSideConnection(conn) {
+  conn.on('data', (data) => {
+    if (!data || !data.type) return;
+    if (data.type === 'hello') {
+      conn._alias = data.alias; conn._pubKeyJwk = data.pubKeyJwk;
+      mesh.connections[conn.peer] = conn;
+      rebuildDirectoryAsHost();
+      return;
+    }
+    routeToRecipient(data);
+  });
+  conn.on('close', () => { delete mesh.connections[conn.peer]; rebuildDirectoryAsHost(); });
+}
+function setupClientConnection(conn) {
+  conn.on('open', async () => {
+    mesh.hostConn = conn;
+    const myPub = await crypto.subtle.exportKey('jwk', mesh.myKeyPair.publicKey);
+    conn.send({ type: 'hello', alias: userProfile.name, pubKeyJwk: myPub });
+    setOnlineStatus('Connected · relaying via another device', 'live');
+  });
+  conn.on('data', (data) => {
+    if (!data || !data.type) return;
+    if (data.type === 'directory:full') { directory = data.directory || {}; renderOnlineList(); return; }
+    handleIncomingPayload(data);
+  });
+  conn.on('close', () => { mesh.hostConn = null; setOnlineStatus('Reconnecting…', 'busy'); attemptReconnect(); });
+  conn.on('error', () => { setOnlineStatus('Reconnecting…', 'busy'); attemptReconnect(); });
+}
+function attemptReconnect() {
+  if (mesh.reconnectTimer) return;
+  mesh.reconnectTimer = setTimeout(() => { mesh.reconnectTimer = null; subscribeToMesh(); }, 2500);
+}
+function becomeClient() {
+  const p = new Peer(undefined, { debug: 0 });
+  p.on('open', (id) => { myPeerId = id; mesh.peer = p; mesh.isHost = false; setupClientConnection(p.connect(LOBBY_ID, { reliable: true })); });
+  p.on('error', () => { setOnlineStatus('Reconnecting…', 'busy'); attemptReconnect(); });
+}
+function activateAsHost(peer) {
+  myPeerId = LOBBY_ID; mesh.peer = peer; mesh.isHost = true;
+  crypto.subtle.exportKey('jwk', mesh.myKeyPair.publicKey).then(myPub => {
+    directory = {}; directory[myPeerId] = myDirEntry(myPub);
+    renderOnlineList();
+    setOnlineStatus('You are relaying for the mesh', 'live');
+  });
+  peer.on('connection', setupHostSideConnection);
+}
+function showConsentBanner(onDecision) {
+  const banner = document.getElementById('consent-banner');
+  banner.style.display = 'block';
+  document.getElementById('consent-yes-btn').onclick = () => { banner.style.display = 'none'; onDecision(true); };
+  document.getElementById('consent-no-btn').onclick = () => { banner.style.display = 'none'; onDecision(false); };
+}
+function subscribeToMesh() {
+  setOnlineStatus('Connecting to the mesh…', 'busy');
+  let candidate;
+  try { candidate = new Peer(LOBBY_ID, { debug: 0 }); } catch(e) { setOnlineStatus('Mesh unavailable right now', ''); return; }
+  let settled = false;
+  candidate.on('open', () => {
+    settled = true;
+    showConsentBanner((accepted) => {
+      if (accepted) activateAsHost(candidate);
+      else { try { candidate.destroy(); } catch(e) {} setTimeout(becomeClient, 300); }
+    });
+  });
+  candidate.on('error', (err) => {
+    if (settled) return;
+    if (err && err.type === 'unavailable-id') { try { candidate.destroy(); } catch(e) {} becomeClient(); }
+    else { setOnlineStatus('Reconnecting…', 'busy'); attemptReconnect(); }
+  });
+}
+async function initOnlineMesh() { mesh.myKeyPair = await loadOrCreateKeyPair(); subscribeToMesh(); }
+
+// ---- Sending ----
+function sendChatPayload(toId, convoId, groupId, msgId, msgType, content) {
+  encryptFor(toId, content).then(({ iv, ct }) => {
+    const payload = { type: 'chat', msgId, from: myPeerId, to: toId, convoId, groupId: groupId || undefined, msgType, iv, ct, fromAlias: userProfile.name, ts: Date.now() };
+    if (mesh.isHost) routeToRecipient(payload);
+    else if (mesh.hostConn) { try { mesh.hostConn.send(payload); } catch(e) {} }
+  });
+}
+
+function sendOnlineMessage(msgType, content) {
+  const msgId = 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+  if (currentPeer.kind === 'group') {
+    currentPeer.members.filter(id => id !== myPeerId).forEach(memberId => {
+      sendChatPayload(memberId, currentPeer.id, currentPeer.id, msgId, msgType, content);
+    });
+  } else {
+    sendChatPayload(currentPeer.id, currentPeer.id, null, msgId, msgType, content);
+  }
+  return msgId;
+}
+
+// ---- Group creation ----
+function openNewGroupScreen() {
+  showScreen('new-group');
+  document.getElementById('group-name-input').value = '';
+  const listEl = document.getElementById('group-member-list');
+  const ids = Object.keys(directory).filter(id => id !== myPeerId);
+  if (!ids.length) { listEl.innerHTML = '<div class="people-empty">No one online to add yet.</div>'; }
+  else {
+    listEl.innerHTML = ids.map(id => {
+      const entry = directory[id];
+      return `<label class="group-check-row"><input type="checkbox" value="${id}" class="member-check">
+        <span>${entry.alias || id}</span></label>`;
+    }).join('');
+  }
+  updateGroupCreateState();
+  document.querySelectorAll('.member-check').forEach(cb => cb.onchange = updateGroupCreateState);
+  document.getElementById('group-name-input').oninput = updateGroupCreateState;
+}
+function updateGroupCreateState() {
+  const name = document.getElementById('group-name-input').value.trim();
+  const checked = document.querySelectorAll('.member-check:checked').length;
+  document.getElementById('group-create-btn').disabled = !(name && checked >= 1);
+}
+function createGroup() {
+  const name = document.getElementById('group-name-input').value.trim();
+  const memberIds = Array.from(document.querySelectorAll('.member-check:checked')).map(cb => cb.value);
+  const groupId = 'g_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+  const members = [myPeerId, ...memberIds];
+  groups[groupId] = { id: groupId, name, members };
+  saveJSON(LS_GROUPS, groups);
+  memberIds.forEach(id => {
+    const payload = { type: 'group:invite', from: myPeerId, to: id, groupId, groupName: name, members, ts: Date.now() };
+    if (mesh.isHost) routeToRecipient(payload);
+    else if (mesh.hostConn) { try { mesh.hostConn.send(payload); } catch(e) {} }
+  });
+  renderGroupList();
+  goToChat({ id: groupId, name, initials: name.slice(0,2).toUpperCase(), color: '#6FC6CC', kind: 'group', members });
+}
+
+// ============================================================================
+// SHARED APP STATE / NAVIGATION
+// ============================================================================
+let userProfile = loadJSON(LS_NAME, null);
+let currentPeer = null;
+let messages = [];
+let chatHistory = loadJSON(LS_CHAT_HISTORY, {});
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+  document.getElementById(name + '-screen').classList.add('active');
+}
+function nowTime() { return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+function relTime(m) { return new Date(Date.now() - m * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+function initials(name) { return name.trim().split(/\s+/).slice(0,2).map(p=>p[0]?.toUpperCase()).join(''); }
+
+document.getElementById('enable-bt-btn').onclick = () => {
+  if (userProfile && userProfile.name) { initOnlineMesh(); goToNearby(); } else { showScreen('name'); }
+};
+
+const nameInput = document.getElementById('name-input');
+const nameBtn = document.getElementById('name-continue-btn');
+nameInput.oninput = () => { nameBtn.disabled = nameInput.value.trim().length === 0; };
+function submitName() {
+  const name = nameInput.value.trim();
+  if (!name) return;
+  userProfile = { name };
+  saveJSON(LS_NAME, userProfile);
+  initOnlineMesh();
+  goToNearby();
+}
+nameBtn.onclick = submitName;
+nameInput.onkeydown = (e) => { if (e.key === 'Enter') submitName(); };
+
+document.getElementById('mode-offline-btn').onclick = () => {
+  document.getElementById('mode-offline-btn').classList.add('active');
+  document.getElementById('mode-online-btn').classList.remove('active');
+  document.getElementById('offline-panel').style.display = 'block';
+  document.getElementById('online-panel').style.display = 'none';
+};
+document.getElementById('mode-online-btn').onclick = () => {
+  document.getElementById('mode-online-btn').classList.add('active');
+  document.getElementById('mode-offline-btn').classList.remove('active');
+  document.getElementById('offline-panel').style.display = 'none';
+  document.getElementById('online-panel').style.display = 'block';
+  renderOnlineList();
+};
+
+document.getElementById('new-group-btn').onclick = openNewGroupScreen;
+document.getElementById('group-back-btn').onclick = () => showScreen('nearby');
+document.getElementById('group-create-btn').onclick = createGroup;
+
+function goToNearby() {
+  showScreen('nearby');
+  document.getElementById('home-greeting').textContent = 'Hi, ' + (userProfile ? userProfile.name : '') + ' 👋';
+  document.getElementById('nav-chat').onclick = goToNearby;
+  document.getElementById('nav-profile').onclick = goToProfile;
+
+  const listEl = document.getElementById('peer-list');
+  const countEl = document.getElementById('peer-count');
+  countEl.textContent = 'Scanning for nearby devices…';
+  listEl.innerHTML = Array.from({length:3}).map(() => `
+    <div class="glass-card skeleton-card">
+      <div class="skeleton-dot"></div>
+      <div style="flex:1"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+    </div>`).join('');
+
+  setTimeout(() => {
+    countEl.textContent = MOCK_PEERS.length + ' devices in mesh range';
+    listEl.innerHTML = '';
+    MOCK_PEERS.forEach(peer => {
+      const card = document.createElement('div');
+      card.className = 'glass-card peer-card';
+      card.innerHTML = `
+        <div class="avatar" style="background:${peer.color}">${peer.initials}</div>
+        <div><div class="peer-name">${peer.name}</div><div class="peer-meta">${peer.distance} · ${peer.via}</div></div>
+        <div class="signal">${'▮'.repeat(peer.signal)}</div>`;
+      card.addEventListener('click', () => goToChat(peer));
+      listEl.appendChild(card);
+    });
+  }, 700);
+}
+
+function goToProfile() {
+  showScreen('profile');
+  const profile = userProfile || { name: 'You' };
+  document.getElementById('profile-avatar').textContent = initials(profile.name);
+  document.getElementById('profile-name').textContent = profile.name;
+  document.getElementById('nav-chat-2').onclick = goToNearby;
+  document.getElementById('nav-profile-2').onclick = goToProfile;
+  document.getElementById('profile-edit-btn').onclick = () => {
+    const newName = window.prompt('Update your name', profile.name);
+    if (newName && newName.trim()) {
+      userProfile.name = newName.trim();
+      saveJSON(LS_NAME, userProfile);
+      document.getElementById('profile-name').textContent = userProfile.name;
+      document.getElementById('profile-avatar').textContent = initials(userProfile.name);
+    }
+  };
+}
+
+function goToChat(peer) {
+  currentPeer = peer;
+  showScreen('chat');
+  document.getElementById('chat-avatar').textContent = peer.initials;
+  document.getElementById('chat-avatar').style.background = peer.color;
+  document.getElementById('chat-name').textContent = peer.name;
+
+  if (peer.kind === 'online') document.getElementById('chat-status').textContent = 'Connected · 🔒 End-to-end locked';
+  else if (peer.kind === 'group') document.getElementById('chat-status').textContent = peer.members.length + ' members · 🔒 Locked';
+  else document.getElementById('chat-status').textContent = 'Connected · ' + peer.via;
+
+  document.getElementById('image-btn').style.display = (peer.kind === 'online' || peer.kind === 'group') ? 'flex' : 'none';
+
+  if (peer.kind === 'online' || peer.kind === 'group') {
+    messages = chatHistory[peer.id] || [];
+  } else {
+    messages = chatHistory[peer.id] || [
+      { id:1, from:'them', msgType:'text', text:'Salam! Are you at the workshop too?', time: relTime(6) },
+      { id:2, from:'me', msgType:'text', text:'Haan! Just reached, no signal inside though', time: relTime(5) },
+      { id:3, from:'them', msgType:'text', text:"Same, that's why mesh chat is great for this", time: relTime(4) },
+    ];
+  }
+  renderMessages();
+
+  // Send "seen" for any unseen incoming messages in this conversation
+  if (peer.kind === 'online' || peer.kind === 'group') {
+    messages.forEach(m => {
+      if (m.from === 'them' && m.senderId) sendSeenAck(m.senderId, m.id, peer.id);
+    });
+  }
+
+  const input = document.getElementById('composer-input');
+  const sendBtn = document.getElementById('send-btn');
+  input.value = '';
+  updateSendState();
+  input.oninput = updateSendState;
+  input.onkeydown = (e) => { if (e.key === 'Enter') handleSend(); };
+  sendBtn.onclick = handleSend;
+  document.getElementById('back-btn').onclick = goToNearby;
+  document.getElementById('image-btn').onclick = () => document.getElementById('image-input').click();
+  document.getElementById('image-input').onchange = handleImagePick;
+}
+
+function updateSendState() {
+  document.getElementById('send-btn').disabled = document.getElementById('composer-input').value.trim().length === 0;
+}
+
+function renderMessages(showTyping) {
+  const el = document.getElementById('messages');
+  let html = messages.length ? '<div class="date-sep">Today</div>' : '<div class="date-sep">Say hello 👋</div>';
+  messages.forEach(m => {
+    const showSender = currentPeer.kind === 'group' && m.from === 'them';
+    let seenLabel = '';
+    if (m.from === 'me') {
+      if (currentPeer.kind === 'group') {
+        const count = (m.seenBy || []).length;
+        if (count > 0) seenLabel = '<span class="seen-tick">· Seen by ' + count + '</span>';
+      } else if (m.seen) {
+        seenLabel = '<span class="seen-tick">· Seen</span>';
+      }
+    }
+    const bubbleContent = m.msgType === 'image'
+      ? `<img src="${m.image}" alt="photo">`
+      : escapeHtml(m.text);
+    html += `<div class="msg-row ${m.from === 'me' ? 'me' : 'them'}">
+      ${showSender ? '<div class="sender-label">' + escapeHtml(m.senderAlias || 'Someone') + '</div>' : ''}
+      <div class="bubble ${m.from === 'me' ? 'me' : 'them'}">${bubbleContent}</div>
+      <div class="msg-time">${m.time} ${seenLabel}</div></div>`;
+  });
+  if (showTyping) {
+    html += `<div class="msg-row them typing-row"><div class="typing-bubble"><span></span><span></span><span></span></div></div>`;
+  }
+  el.innerHTML = html;
+  el.scrollTop = el.scrollHeight;
+}
+
+function handleSend() {
+  const input = document.getElementById('composer-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  if (currentPeer.kind === 'online' || currentPeer.kind === 'group') {
+    const msgId = sendOnlineMessage('text', text);
+    messages.push({ id: msgId, from: 'me', msgType: 'text', text, time: nowTime(), senderAlias: userProfile.name, seenBy: [] });
+    chatHistory[currentPeer.id] = messages;
+    saveJSON(LS_CHAT_HISTORY, chatHistory);
+    input.value = ''; updateSendState(); renderMessages();
+    return;
+  }
+
+  messages.push({ id: Date.now(), from: 'me', msgType: 'text', text, time: nowTime() });
+  chatHistory[currentPeer.id] = messages;
+  saveJSON(LS_CHAT_HISTORY, chatHistory);
+  input.value = ''; updateSendState(); renderMessages();
+
+  setTimeout(() => renderMessages(true), 500);
+  setTimeout(() => {
+    const replies = ['Theek hai 👍', 'Acha, sunta hoon', 'Haan bilkul!', 'Samajh gaya'];
+    messages.push({ id: Date.now()+1, from: 'them', msgType: 'text', text: replies[Math.floor(Math.random()*replies.length)], time: nowTime() });
+    chatHistory[currentPeer.id] = messages;
+    saveJSON(LS_CHAT_HISTORY, chatHistory);
+    renderMessages();
+  }, 1800);
+}
+
+function handleImagePick(e) {
+  const file = e.target.files[0];
+  if (!file || !currentPeer || (currentPeer.kind !== 'online' && currentPeer.kind !== 'group')) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 800;
+      const scale = Math.min(1, maxW / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+
+      const msgId = sendOnlineMessage('image', dataUrl);
+      messages.push({ id: msgId, from: 'me', msgType: 'image', image: dataUrl, time: nowTime(), senderAlias: userProfile.name, seenBy: [] });
+      chatHistory[currentPeer.id] = messages;
+      saveJSON(LS_CHAT_HISTORY, chatHistory);
+      renderMessages();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+</script>
+</body>
+</html>
